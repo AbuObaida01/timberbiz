@@ -3,12 +3,13 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from sqlalchemy.orm import get_db
+from app.database import get_db
+from sqlalchemy.orm import Session
 from app.models.user import User
 from app.config import settings
 
 #TO tell fastapi where to look for the token
-oauth2_scheme=OAuth2PasswordBearer(tokenUrl="/auth/login")
+oauth2_scheme=OAuth2PasswordBearer(tokenUrl="/auth/login/swagger")
 
 #bcrypt context for hashing password
 pwd_context=CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -30,7 +31,7 @@ def create_access_token(data: dict)->str:
     return jwt.encode(
         to_encode,
         settings.SECRET_KEY,
-        algorithms=settings.ALGORITHM
+        algorithm=settings.ALGORITHM
     )
 
 def decode_token(token:str)->dict:
@@ -45,7 +46,7 @@ def decode_token(token:str)->dict:
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            datail="Invalid or expired token",
+            detail="Invalid or expired token",
             headers={"WWW-Authenticate":"Bearer"},
         )
 
@@ -62,7 +63,7 @@ def get_current_user(
     payload=decode_token(token)
     user_id: int = payload.get("user_id")
 
-    if user_id in None:
+    if user_id is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token payload"
@@ -88,7 +89,7 @@ def get_admin_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"
         )
-    from app.config import setitngs
+    from app.config import settings
     allowed_admins=[settings.ADMIN_EMAIL_1, settings.ADMIN_EMAIL_2]
 
     if current_user.email not in allowed_admins:

@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from app.database import Base, engine
 import app.models
+from app.routers import auth, cutting_requests
 
 app=FastAPI(
     title="timberbiz API",
@@ -10,6 +11,9 @@ app=FastAPI(
 
 Base.metadata.create_all(bind=engine)
 
+# Register routers
+app.include_router(auth.router)
+app.include_router(cutting_requests.router)
 @app.get("/")
 def root():
     return {"message":"Welcome"}

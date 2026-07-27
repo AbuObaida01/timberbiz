@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     ADMIN_EMAIL_1: str
     ADMIN_EMAIL_2: str
 
+    ADMIN_PASSWORD_1: str
+    ADMIN_PASSWORD_2: str
+    
     class Config:
         env_file=".env"
 

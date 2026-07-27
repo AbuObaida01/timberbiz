@@ -29,6 +29,10 @@ class UserResponse(BaseModel):
         from_attributes=True
 
 class TokenResponse(BaseModel):
-    access_token=str
+    access_token: str
     token_type:str="bearer"
     user:UserResponse
+
+class LocationUpdate(BaseModel):
+    latitude: float
+    longitude: float

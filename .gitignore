@@ -1,6 +1,61 @@
+# Virtual Environment
 venv/
-__pycache__/
-*.pyc
+.venv/
+env/
+
+# Environment Variables
 .env
+.env.*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / Packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Logs
+*.log
+
+# Database (ignore only if using SQLite locally)
+*.db
+*.sqlite3
+
+# IDEs
 .vscode/
 .idea/
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Type Checkers
+.mypy_cache/
+.pyre/
+.pytype/
+
+# Ruff
+.ruff_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Temporary Files
+*.tmp
+*.temp
+
+# Docker
+docker-compose.override.yml
+
+# Alembic (optional)
+# Uncomment only if you DON'T want to track migrations
+# alembic/versions/
