@@ -10,6 +10,10 @@ from app.config import settings
 
 #TO tell fastapi where to look for the token
 oauth2_scheme=OAuth2PasswordBearer(tokenUrl="/auth/login/swagger")
+oauth2_scheme_optional = OAuth2PasswordBearer(
+    tokenUrl="/auth/login/swagger",
+    auto_error=False
+)
 
 #bcrypt context for hashing password
 pwd_context=CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -75,6 +79,32 @@ def get_current_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User Not Found"
         )
+    return user
+
+from typing import Optional
+
+def get_current_user_optional(
+    token: Optional[str] = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)
+) -> Optional[User]:
+
+    # No Authorization header
+    if token is None:
+        return None
+
+    try:
+        payload = decode_token(token)
+    except HTTPException:
+        # Invalid token
+        return None
+
+    user_id = payload.get("user_id")
+
+    if user_id is None:
+        return None
+
+    user = db.query(User).filter(User.id == user_id).first()
+
     return user
 
 def get_admin_user(
