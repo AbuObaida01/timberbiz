@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from app.database import Base, engine
 import app.models
-from app.routers import auth, cutting_requests,trees
+from app.routers import auth, cutting_requests,trees, products, cart
 
 app=FastAPI(
     title="timberbiz API",
@@ -15,6 +15,9 @@ Base.metadata.create_all(bind=engine)
 app.include_router(auth.router)
 app.include_router(cutting_requests.router)
 app.include_router(trees.router)
+app.include_router(products.router)
+app.include_router(cart.router)
+
 @app.get("/")
 def root():
-    return {"message":"Welcome"}
+    return {"message":"Welcome to TimberBiz API"}
