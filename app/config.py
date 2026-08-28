@@ -19,6 +19,9 @@ class Settings(BaseSettings):
 
     ADMIN_PASSWORD_1: str
     ADMIN_PASSWORD_2: str
+
+    RAZORPAY_KEY_ID: str
+    RAZORPAY_KEY_SECRET: str
     
     class Config:
         env_file=".env"
