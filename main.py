@@ -11,7 +11,8 @@ app=FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000",
-    "https://timbrio.vercel.app"],
+    "https://timbrio.vercel.app",
+    "https://timberbiz-frontend.vercel.app",],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
