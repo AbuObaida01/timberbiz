@@ -14,6 +14,7 @@ from app.schemas.tree import (
 from app.services.auth import get_current_user, get_admin_user, get_current_user_optional
 from app.services.geo import check_within_range
 from app.services.cloudinary_service import upload_image
+from app.services.tree_classifier import classify_tree_image
 
 router = APIRouter(prefix="/trees", tags=["Tree Listings"])
 
