@@ -13,6 +13,14 @@ class User(Base):
     role=Column(String(20), default="user", nullable=False) #"user" or "admin"
     latitude=Column(Float, nullable=True,index=True)
     longitude=Column(Float, nullable=True, index=True)
+        # Structured address — NEW
+    village_city = Column(String(100), nullable=True)
+    district = Column(String(100), nullable=True)
+    state = Column(String(100), nullable=True)
+    pincode = Column(String(10), nullable=True)
+    full_address = Column(String(300), nullable=True)
+
+    created_at = Column(DateTime, server_default=func.now())
     created_at=Column(DateTime, server_default=func.now())
     updated_at=Column(DateTime,onupdate=func.now())
     trees=relationship("Tree", back_populates="uploader")

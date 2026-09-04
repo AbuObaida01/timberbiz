@@ -15,35 +15,32 @@ from app.config import settings
 
 router=APIRouter(prefix="/auth",tags=["Authentication"])
 
-@router.post("/register",response_model=TokenResponse, status_code=201)
-def register(user_data: UserRegister, db: Session=Depends(get_db)):
-    """Register a new user account"""
-
-    #Check if email already exists
-    existing=db.query(User).filter(User.email==user_data.email).first()
+@router.post("/register", response_model=TokenResponse, status_code=201)
+def register(user_data: UserRegister, db: Session = Depends(get_db)):
+    existing = db.query(User).filter(User.email == user_data.email).first()
     if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
-        )
-    
-    #Create new user
-    new_user=User(
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    new_user = User(
         name=user_data.name,
         email=user_data.email,
         phone=user_data.phone,
         password_hash=hash_password(user_data.password),
         role="user",
         latitude=user_data.latitude,
-        longitude=user_data.longitude
+        longitude=user_data.longitude,
+        village_city=user_data.village_city,
+        district=user_data.district,
+        state=user_data.state,
+        pincode=user_data.pincode,
+        full_address=user_data.full_address,
     )
+
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
 
-    #create JWT Token
-    token=create_access_token({"user_id": new_user.id})
-
+    token = create_access_token({"user_id": new_user.id})
     return TokenResponse(
         access_token=token,
         token_type="bearer",

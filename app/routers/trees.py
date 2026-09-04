@@ -93,6 +93,11 @@ async def create_tree_listing(
     price: Decimal = Form(...),
     latitude: Optional[float] = Form(None),
     longitude: Optional[float] = Form(None),
+    village_city: Optional[str] = Form(None),
+    district: Optional[str] = Form(None),
+    state: Optional[str] = Form(None),
+    pincode: Optional[str] = Form(None),
+    full_address: Optional[str] = Form(None),
     images: List[UploadFile] = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -133,7 +138,12 @@ async def create_tree_listing(
         price=price,
         status="pending",
         latitude=listing_lat,
-        longitude=listing_lng
+        longitude=listing_lng,
+        village_city=village_city or current_user.village_city,
+        district=district or current_user.district,
+        state=state or current_user.state,
+        pincode=pincode or current_user.pincode,
+        full_address=full_address or current_user.full_address,
     )
     db.add(new_tree)
     db.commit()
