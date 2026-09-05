@@ -1,11 +1,12 @@
 #!/bin/bash
+
 set -e
 
-echo "Running database migrations..."
+echo "🔄 Running database migrations..."
 alembic upgrade head
 
-echo "Seeding admin accounts..."
+echo "👥 Seeding admin accounts..."
 python seed_admin.py
 
-echo "Starting FastAPI server..."
-uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
+echo "🌲 Starting TimberBiz API..."
+uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1

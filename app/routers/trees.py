@@ -14,7 +14,9 @@ from app.schemas.tree import (
 from app.services.auth import get_current_user, get_admin_user, get_current_user_optional
 from app.services.geo import check_within_range
 from app.services.cloudinary_service import upload_image
+from app.services.tree_classifier import check_all_images
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/trees", tags=["Tree Listings"])
 
 
@@ -85,6 +87,24 @@ def get_tree_detail(
 
 
 # ── PROTECTED ROUTES ─────────────────────────────────
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from sqlalchemy.orm import Session
+from typing import List, Optional
+from decimal import Decimal
+import logging
+
+from app.database import get_db
+from app.models.tree import Tree, TreeImage
+from app.models.user import User
+from app.schemas.tree import TreePublicResponse, TreePrivateResponse, TreeStatusUpdate
+from app.services.auth import get_current_user, get_admin_user, get_current_user_optional
+from app.services.geo import check_within_range
+from app.services.cloudinary_service import upload_image
+from app.services.tree_classifier import check_all_images
+
+logger = logging.getLogger(__name__)
+router = APIRouter(prefix="/trees", tags=["Tree Listings"])
+
 
 @router.post("/", status_code=201)
 async def create_tree_listing(
@@ -104,33 +124,91 @@ async def create_tree_listing(
 ):
     """
     Create a new tree listing.
-    Only users within 10km of shop can post.
-    Requires at least 1 image.
-    Status starts as 'pending' — admin must approve.
+    Every image is checked by ML classifier separately.
+    All images must pass — any failure blocks the listing.
     """
 
-    # Use listing location if provided, else use user's registered location
+    # ── 1. GEO CHECK ──────────────────────────────────────
     listing_lat = latitude or current_user.latitude
     listing_lng = longitude or current_user.longitude
-
-    # ── GEO CHECK ──────────────────────────────
     distance = check_within_range(listing_lat, listing_lng)
 
-    # ── VALIDATE IMAGES ────────────────────────
-    if not images:
+    # ── 2. IMAGE COUNT VALIDATION ─────────────────────────
+    if not images or len(images) == 0:
         raise HTTPException(
             status_code=400,
             detail="At least one image is required"
         )
 
-    # Max 5 images per listing
     if len(images) > 5:
         raise HTTPException(
             status_code=400,
             detail="Maximum 5 images allowed per listing"
         )
 
-    # ── CREATE LISTING ─────────────────────────
+    # ── 3. READ ALL IMAGE BYTES FIRST ────────────────────
+    # Read all before any DB operations
+    image_data = []
+    for image in images:
+        if image.content_type not in ["image/jpeg", "image/png", "image/webp"]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Image {image.filename}: Invalid file type '{image.content_type}'. "
+                       f"Only JPEG, PNG, WEBP allowed."
+            )
+
+        file_bytes = await image.read()
+
+        # Check file size — max 10MB per image
+        if len(file_bytes) > 10 * 1024 * 1024:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Image {image.filename} is too large. Maximum 10MB per image."
+            )
+
+        image_data.append({
+            "filename": image.filename,
+            "bytes": file_bytes,
+            "content_type": image.content_type
+        })
+
+    # ── 4. ML CLASSIFICATION — ALL IMAGES ────────────────
+    logger.info(f"Running ML classification on {len(image_data)} images...")
+
+    image_bytes_list = [img["bytes"] for img in image_data]
+    classification_result = check_all_images(image_bytes_list)
+
+    logger.info(f"ML Result: {classification_result['passed']}/{classification_result['total_images']} passed")
+
+    # If any image failed — block the entire listing
+    if not classification_result["all_passed"]:
+        failed_nums = classification_result["failed_image_numbers"]
+        failed_results = [
+            r for r in classification_result["results"]
+            if not r["is_tree"]
+        ]
+
+        # Build helpful error message
+        error_details = []
+        for r in failed_results:
+            error_details.append(
+                f"Image {r['image_number']}: {r['reason']}"
+            )
+
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": f"{classification_result['failed']} out of "
+                           f"{classification_result['total_images']} image(s) "
+                           f"failed the tree verification check.",
+                "failed_images": failed_nums,
+                "details": error_details,
+                "tip": "Please upload clear photos showing the actual tree. "
+                       "Avoid blurry, dark, or irrelevant images."
+            }
+        )
+
+    # ── 5. CREATE LISTING IN DB ───────────────────────────
     new_tree = Tree(
         uploader_id=current_user.id,
         title=title,
@@ -149,39 +227,47 @@ async def create_tree_listing(
     db.commit()
     db.refresh(new_tree)
 
-    # ── UPLOAD IMAGES TO CLOUDINARY ───────────
+    # ── 6. UPLOAD ALL IMAGES TO CLOUDINARY ───────────────
     uploaded_urls = []
-    for image in images:
-        # Validate file type
-        if image.content_type not in ["image/jpeg", "image/png", "image/webp"]:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid file type: {image.content_type}. Only JPEG, PNG, WEBP allowed."
+    for img_data in image_data:
+        try:
+            image_url = upload_image(
+                img_data["bytes"],
+                folder="timberbiz/trees"
             )
-
-        file_bytes = await image.read()
-        image_url = upload_image(file_bytes)
-
-        # Save image record
-        tree_image = TreeImage(
-            tree_id=new_tree.id,
-            image_url=image_url
-        )
-        db.add(tree_image)
-        uploaded_urls.append(image_url)
+            tree_image = TreeImage(
+                tree_id=new_tree.id,
+                image_url=image_url
+            )
+            db.add(tree_image)
+            uploaded_urls.append(image_url)
+        except Exception as e:
+            # If upload fails midway — cleanup and raise
+            db.query(TreeImage).filter(
+                TreeImage.tree_id == new_tree.id
+            ).delete()
+            db.delete(new_tree)
+            db.commit()
+            raise HTTPException(
+                status_code=500,
+                detail=f"Image upload failed: {str(e)}"
+            )
 
     db.commit()
     db.refresh(new_tree)
 
     return {
-        "message": "Tree listing submitted successfully. Waiting for admin approval.",
+        "message": "Listing submitted successfully. Waiting for admin approval.",
         "listing_id": new_tree.id,
         "status": new_tree.status,
         "distance_from_shop_km": distance,
         "images_uploaded": len(uploaded_urls),
-        "image_urls": uploaded_urls
+        "ml_verification": {
+            "passed": classification_result["passed"],
+            "total": classification_result["total_images"],
+            "message": "All images verified as trees ✅"
+        }
     }
-
 
 @router.get("/my/listings")
 def get_my_listings(
