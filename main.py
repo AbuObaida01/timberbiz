@@ -3,7 +3,7 @@ from app.database import Base, engine
 import app.models
 from app.routers import auth, cutting_requests,trees, products, cart, orders, admin
 from fastapi.middleware.cors import CORSMiddleware
-
+import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ async def startup_event():
         logger.error(f"⚠️ ML model preload failed: {e}")
         logger.error("Server will still run — classification will load on first request")
 
-        
+
 @app.get("/")
 def root():
     return {"message":"Welcome to TimberBiz API"}
