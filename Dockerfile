@@ -4,9 +4,12 @@ WORKDIR /app
 
 COPY requirements.txt .
 
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir \
+    -r requirements.txt \
+    --extra-index-url https://download.pytorch.org/whl/cpu
 
 COPY . .
+
 COPY start.sh /app/start.sh
 
 RUN chmod +x /app/start.sh
