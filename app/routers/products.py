@@ -22,24 +22,40 @@ def get_all_products(
     max_price: Optional[float] = None,
     db: Session = Depends(get_db)
 ):
-    """
-    Public route — anyone can browse furniture products.
-    Optional filters: category, min_price, max_price.
-    """
-    query = db.query(Product).filter(Product.stock > 0)
+    """Public product listing — shows available stock only"""
+    # Cleanup expired reservations first
+    from app.services.stock import cleanup_expired_reservations
+    cleanup_expired_reservations(db)
+
+    query = db.query(Product)
 
     if category:
-        query = query.filter(
-            Product.category.ilike(f"%{category}%")
-        )
-
+        query = query.filter(Product.category.ilike(f"%{category}%"))
     if min_price is not None:
         query = query.filter(Product.price >= min_price)
-
     if max_price is not None:
         query = query.filter(Product.price <= max_price)
 
-    return query.order_by(Product.created_at.desc()).all()
+    products = query.order_by(Product.created_at.desc()).all()
+
+    # Add available_stock to each product response
+    result = []
+    for p in products:
+        result.append({
+            "id": p.id,
+            "name": p.name,
+            "category": p.category,
+            "price": float(p.price),
+            "description": p.description,
+            "stock": p.stock,
+            "available_stock": p.available_stock(),
+            "image_url": p.image_url,
+            "created_at": p.created_at,
+            "low_stock": p.available_stock() <= 3 and p.available_stock() > 0,
+            "out_of_stock": p.available_stock() == 0
+        })
+
+    return result
 
 
 @router.get("/categories")
