@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File,
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from decimal import Decimal
-
+import logging
 from app.database import get_db
 from app.models.tree import Tree, TreeImage
 from app.models.user import User
