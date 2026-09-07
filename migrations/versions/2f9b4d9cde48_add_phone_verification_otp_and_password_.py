@@ -56,7 +56,15 @@ def upgrade() -> None:
     )
 )
     op.add_column('users', sa.Column('phone_verified_at', sa.DateTime(), nullable=True))
-    op.add_column('users', sa.Column('token_version', sa.Integer(), nullable=False))
+    op.add_column(
+    'users',
+    sa.Column(
+        'token_version',
+        sa.Integer(),
+        nullable=False,
+        server_default=sa.text('0')
+    )
+)
     # ### end Alembic commands ###
 
 
