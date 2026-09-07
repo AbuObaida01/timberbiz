@@ -27,7 +27,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
-        "https://timberbiz.vercel.app",
+        "https://timbrio-three.vercel.app",
         "https://timber-frontend.vercel.app",
     ],
     allow_credentials=True,
