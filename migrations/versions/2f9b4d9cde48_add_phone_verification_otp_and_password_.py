@@ -46,7 +46,15 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_phone_verification_otps_id'), 'phone_verification_otps', ['id'], unique=False)
     op.create_index(op.f('ix_phone_verification_otps_user_id'), 'phone_verification_otps', ['user_id'], unique=False)
-    op.add_column('users', sa.Column('phone_verified', sa.Boolean(), nullable=False))
+    op.add_column(
+    'users',
+    sa.Column(
+        'phone_verified',
+        sa.Boolean(),
+        nullable=False,
+        server_default=sa.text('false')
+    )
+)
     op.add_column('users', sa.Column('phone_verified_at', sa.DateTime(), nullable=True))
     op.add_column('users', sa.Column('token_version', sa.Integer(), nullable=False))
     # ### end Alembic commands ###
