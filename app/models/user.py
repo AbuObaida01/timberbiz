@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, func
+from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, func
 from app.database import Base
 from sqlalchemy.orm import relationship
 
@@ -23,13 +23,18 @@ class User(Base):
     pincode = Column(String(10), nullable=True)
     full_address = Column(String(300), nullable=True)
 
+    # Phone verification — NEW
+    phone_verified = Column(Boolean, default=False, nullable=False)
+    phone_verified_at = Column(DateTime, nullable=True)
+
+    # Token version — NEW
+    # Incremented on password reset to invalidate old JWTs
+    token_version = Column(Integer, default=0, nullable=False)
+
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, onupdate=func.now())
 
-    trees = relationship(
-        "Tree",
-        back_populates="uploader"
-    )
+    trees = relationship("Tree", back_populates="uploader")
 
     def __repr__(self):
         return f"<User id={self.id} email={self.email}>"

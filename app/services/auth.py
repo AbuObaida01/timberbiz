@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta 
+from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
@@ -7,28 +7,38 @@ from app.database import get_db
 from sqlalchemy.orm import Session
 from app.models.user import User
 from app.config import settings
+from typing import Optional
 
-#TO tell fastapi where to look for the token
-oauth2_scheme=OAuth2PasswordBearer(tokenUrl="/auth/login/swagger")
+# Tell FastAPI where to look for the token
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login/swagger")
 oauth2_scheme_optional = OAuth2PasswordBearer(
     tokenUrl="/auth/login/swagger",
     auto_error=False
 )
 
-#bcrypt context for hashing password
-pwd_context=CryptContext(schemes=["bcrypt"], deprecated="auto")
+# bcrypt context for hashing passwords
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-#password utilities
-def hash_password(password: str)->str:
+
+# ── Password Utilities ──────────────────────────────────
+
+def hash_password(password: str) -> str:
     return pwd_context.hash(password)
-def verify_password(plain: str, hashed:str)->bool:
+
+
+def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
 
-#JWT Utilities
-def create_access_token(data: dict)->str:
-    """Create JWT token with expiry"""
-    to_encode=data.copy()
-    expire=datetime.utcnow()+timedelta(
+
+# ── JWT Utilities ───────────────────────────────────────
+
+def create_access_token(data: dict) -> str:
+    """
+    Create JWT token with expiry.
+    Includes token_version for invalidation after password reset.
+    """
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(
         minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
     )
     to_encode.update({"exp": expire})
@@ -38,10 +48,11 @@ def create_access_token(data: dict)->str:
         algorithm=settings.ALGORITHM
     )
 
-def decode_token(token:str)->dict:
+
+def decode_token(token: str) -> dict:
     """Decode and verify a JWT token"""
     try:
-        payload=jwt.decode(
+        payload = jwt.decode(
             token,
             settings.SECRET_KEY,
             algorithms=[settings.ALGORITHM]
@@ -51,20 +62,22 @@ def decode_token(token:str)->dict:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
-            headers={"WWW-Authenticate":"Bearer"},
+            headers={"WWW-Authenticate": "Bearer"},
         )
 
-#Dependency Functions
+
+# ── Dependency Functions ────────────────────────────────
 
 def get_current_user(
-        token: str=Depends(oauth2_scheme),
-        db: Session=Depends(get_db)
-)->User:
-    """Extract user form JWT token
-    Use this as a dependency on any protected route
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)
+) -> User:
     """
-
-    payload=decode_token(token)
+    Extract user from JWT token.
+    Also validates token_version — rejects tokens issued
+    before a password reset.
+    """
+    payload = decode_token(token)
     user_id: int = payload.get("user_id")
 
     if user_id is None:
@@ -72,56 +85,67 @@ def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token payload"
         )
-    user=db.query(User).filter(User.id==user_id).first()
+
+    user = db.query(User).filter(User.id == user_id).first()
 
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="User Not Found"
+            detail="User not found"
         )
+
+    # Validate token version — if password was reset,
+    # token_version in DB is incremented, old tokens fail here
+    token_version_in_token = payload.get("token_version", 0)
+    if token_version_in_token != user.token_version:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session expired. Please log in again.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     return user
 
-from typing import Optional
 
 def get_current_user_optional(
-    token: Optional[str] = Depends(oauth2_scheme),
+    token: Optional[str] = Depends(oauth2_scheme_optional),
     db: Session = Depends(get_db)
 ) -> Optional[User]:
-
-    # No Authorization header
+    """Returns user if valid token, None otherwise. Never raises."""
     if token is None:
         return None
-
     try:
         payload = decode_token(token)
     except HTTPException:
-        # Invalid token
         return None
 
     user_id = payload.get("user_id")
-
     if user_id is None:
         return None
 
     user = db.query(User).filter(User.id == user_id).first()
+    if user is None:
+        return None
+
+    # Also check token version for optional auth
+    token_version_in_token = payload.get("token_version", 0)
+    if token_version_in_token != user.token_version:
+        return None
 
     return user
 
+
 def get_admin_user(
-        current_user: User=Depends(get_current_user)
-)->User:
-    """
-    Only allow admin user
-    Use this as a dependency on any admin-only route
-    """
-    if current_user.role!="admin":
+    current_user: User = Depends(get_current_user)
+) -> User:
+    """Only allow admin users."""
+    if current_user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"
         )
-    from app.config import settings
-    allowed_admins=[settings.ADMIN_EMAIL_1, settings.ADMIN_EMAIL_2]
 
+    allowed_admins = [settings.ADMIN_EMAIL_1, settings.ADMIN_EMAIL_2]
     if current_user.email not in allowed_admins:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
